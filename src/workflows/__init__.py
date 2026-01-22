@@ -2,10 +2,10 @@
 
 from src.workflows.hierarchical_orchestrator import (
     HierarchicalOrchestrator,
-    HierarchicalWorkflowConfig,
 )
 from src.workflows.hierarchical_workflow import (
     HierarchicalWorkflow,
+    HierarchicalWorkflowConfig,
     execute_hierarchical_workflow,
 )
 

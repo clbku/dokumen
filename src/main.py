@@ -175,12 +175,12 @@ def main():
         "--mode",
         type=str,
         choices=["sequential", "hierarchical"],
-        default="sequential",
+        default="hierarchical",
         help="Workflow mode: 'sequential' (original) or 'hierarchical' (Manager-coordinated)",
     )
     parser.add_argument(
-        "--requirement",
-        type=str,
+        "requirement",
+        nargs="?",
         help="User requirement / feature description",
     )
     parser.add_argument(
@@ -234,67 +234,72 @@ def main():
             )
         else:
             # Run sequential workflow (original behavior)
-            print("\n" + "="*60)
-            print("SEQUENTIAL WORKFLOW MODE (Original)")
-            print("="*60)
-            print(f"User Requirement: {args.requirement}")
-            print("="*60 + "\n")
-
-            print("Initializing Agents with different providers...")
-
-            # 1. Define LLMs
-            llm_openai = get_llm("zai")
-            llm_google = get_llm("google")
-
-            # 2. Define Agents
-            agent_a = Agent(
-                role='OpenAI Representative',
-                goal='Introduce yourself and your underlying model',
-                backstory='You are an AI assistant powered by OpenAI.',
-                verbose=verbose,
-                memory=False,
-                llm=llm_openai
-            )
-
-            agent_b = Agent(
-                role='Google Gemini Representative',
-                goal='Introduce yourself and your underlying model',
-                backstory='You are an AI assistant powered by Google Gemini.',
-                verbose=verbose,
-                memory=False,
-                llm=llm_google
-            )
-
-            # 3. Define Tasks
-            task_a = Task(
-                description='Say hello and state which model provider you are using.',
-                expected_output='A greeting from the OpenAI agent.',
-                agent=agent_a,
-            )
-
-            task_b = Task(
-                description='Say hello and state which model provider you are using. Also compliment the other agent.',
-                expected_output='A greeting from the Google agent.',
-                agent=agent_b,
-            )
-
-            # 4. Define Crew
-            crew = Crew(
-                agents=[agent_a, agent_b],
-                tasks=[task_a, task_b],
-                process='sequential'
-            )
-
-            # 5. Kickoff
-            result = crew.kickoff()
-            print("\n########################\n")
-            print("Crew Execution Result:")
-            print(result)
-            print("\n########################\n")
+            run_original_sequential(args.requirement, verbose)
 
     except Exception as e:
         print(f"Error during execution: {e}")
         raise
+
+
+def run_original_sequential(requirement: str, verbose: bool = True):
+    """Original sequential workflow (for backward compatibility)."""
+    print("\n" + "="*60)
+    print("SEQUENTIAL WORKFLOW MODE (Original)")
+    print("="*60)
+    print(f"User Requirement: {requirement}")
+    print("="*60 + "\n")
+
+    print("Initializing Agents with different providers...")
+
+    # 1. Define LLMs
+    llm_openai = get_llm("zai")
+    llm_google = get_llm("google")
+
+    # 2. Define Agents
+    agent_a = Agent(
+        role='OpenAI Representative',
+        goal='Introduce yourself and your underlying model',
+        backstory='You are an AI assistant powered by OpenAI.',
+        verbose=verbose,
+        memory=False,
+        llm=llm_openai
+    )
+
+    agent_b = Agent(
+        role='Google Gemini Representative',
+        goal='Introduce yourself and your underlying model',
+        backstory='You are an AI assistant powered by Google Gemini.',
+        verbose=verbose,
+        memory=False,
+        llm=llm_google
+    )
+
+    # 3. Define Tasks
+    task_a = Task(
+        description='Say hello and state which model provider you are using.',
+        expected_output='A greeting from the OpenAI agent.',
+        agent=agent_a,
+    )
+
+    task_b = Task(
+        description='Say hello and state which model provider you are using. Also compliment the other agent.',
+        expected_output='A greeting from the Google agent.',
+        agent=agent_b,
+    )
+
+    # 4. Define Crew
+    crew = Crew(
+        agents=[agent_a, agent_b],
+        tasks=[task_a, task_b],
+        process='sequential'
+    )
+
+    # 5. Kickoff
+    result = crew.kickoff()
+    print("\n########################\n")
+    print("Crew Execution Result:")
+    print(result)
+    print("\n########################\n")
 
 
 if __name__ == "__main__":

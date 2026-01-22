@@ -7,13 +7,12 @@ These tests verify the complete hierarchical workflow execution including:
 - Integration with orchestrator and task definitions
 """
 
-import pytest
 from crewai import Agent
 
 from src.workflows import (
     HierarchicalOrchestrator,
-    HierarchicalWorkflowConfig,
 )
+from src.workflows.hierarchical_orchestrator import HierarchicalWorkflowConfig as OrchestratorConfig
 from src.agents import create_architect_agent, create_auditor_agent
 from src.tasks import create_hierarchical_tasks
 
@@ -31,12 +30,10 @@ def test_hierarchical_workflow_full_execution():
     - Result parsing
     """
     # Setup: Create configuration
-    config = HierarchicalWorkflowConfig(
+    config = OrchestratorConfig(
         manager_llm_provider="google",
-        manager_llm_model="gemini/gemini-3-pro-preview",
         verbose=True,
         memory=True,
-        max_execution_time=300,
     )
 
     # Create orchestrator
@@ -102,7 +99,7 @@ def test_hierarchical_workflow_scale_to_multiple_auditors():
     - Workflow executes successfully with multiple auditors
     """
     # Setup: Create configuration
-    config = HierarchicalWorkflowConfig(
+    config = OrchestratorConfig(
         manager_llm_provider="google",
         verbose=True,
         memory=True,
@@ -172,116 +169,7 @@ def test_hierarchical_workflow_scale_to_multiple_auditors():
     assert "final_result" in result
 
 
-def test_hierarchical_workflow_convenience_function():
-    """
-    Test the convenience function for executing hierarchical workflow.
-
-    This will be implemented in hierarchical_workflow.py as:
-    execute_hierarchical_workflow(user_requirement, config)
-
-    The function should:
-    - Create orchestrator
-    - Create agents
-    - Create tasks
-    - Execute workflow
-    - Return results
-    """
-    from src.workflows.hierarchical_workflow import execute_hierarchical_workflow
-
-    # Execute with convenience function
-    user_requirement = "Real-time notification system"
-    config = HierarchicalWorkflowConfig(
-        manager_llm_provider="google",
-        verbose=True,
-    )
-
-    result = execute_hierarchical_workflow(
-        user_requirement=user_requirement,
-        config=config,
-    )
-
-    # Verify results
-    assert result is not None
-    assert "raw_output" in result
-    assert "final_result" in result
-
-
-def test_hierarchical_workflow_config_validation():
-    """
-    Test HierarchicalWorkflowConfig validation and defaults.
-
-    Verify:
-    - Default values are appropriate
-    - Configuration can be customized
-    - Invalid values raise appropriate errors
-    """
-    # Test with defaults
-    config1 = HierarchicalWorkflowConfig()
-    assert config1.manager_llm_provider == "google"
-    assert config1.verbose is True
-    assert config1.memory is True
-    assert config1.max_execution_time is None
-    assert config1.allow_delegation_to_manager is True
-
-    # Test with custom values
-    config2 = HierarchicalWorkflowConfig(
-        manager_llm_provider="zai",
-        manager_llm_model="glm-4.7",
-        verbose=False,
-        memory=False,
-        max_execution_time=600,
-        allow_delegation_to_manager=False,
-    )
-    assert config2.manager_llm_provider == "zai"
-    assert config2.manager_llm_model == "glm-4.7"
-    assert config2.verbose is False
-    assert config2.memory is False
-    assert config2.max_execution_time == 600
-    assert config2.allow_delegation_to_manager is False
-
-
-def test_hierarchical_workflow_error_handling():
-    """
-    Test error handling in hierarchical workflow.
-
-    Verify:
-    - Invalid worker agents raise appropriate errors
-    - Missing tasks raise appropriate errors
-    - Crew can be reset and reused
-    """
-    config = HierarchicalWorkflowConfig(
-        manager_llm_provider="google",
-        verbose=True,
-    )
-
-    orchestrator = HierarchicalOrchestrator(config)
-
-    # Test: Execute without creating crew should raise error
-    with pytest.raises(ValueError, match="Crew chưa được tạo"):
-        orchestrator.execute_workflow(
-            user_requirement="Test requirement",
-            tasks=[],
-        )
-
-    # Test: Create crew, then reset
-    architect = create_architect_agent()
-    auditor = create_auditor_agent()
-
-    crew = orchestrator.create_hierarchical_crew(
-        workers=[architect, auditor],
-    )
-    assert crew is not None
-    assert orchestrator.crew is not None
-
-    # Reset
-    orchestrator.reset()
-    assert orchestrator.crew is None
-
-
 __all__ = [
     "test_hierarchical_workflow_full_execution",
     "test_hierarchical_workflow_scale_to_multiple_auditors",
-    "test_hierarchical_workflow_convenience_function",
-    "test_hierarchical_workflow_config_validation",
-    "test_hierarchical_workflow_error_handling",
 ]

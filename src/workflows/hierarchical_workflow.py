@@ -10,269 +10,193 @@ This module provides:
 - execute_hierarchical_workflow(): Convenience function for quick execution
 """
 
-from typing import List, Optional, Dict, Any, Literal
+from typing import Dict, Any, Literal
 from dataclasses import dataclass
-from crewai import Agent, Task
+from crewai import Agent
 
 from src.workflows.hierarchical_orchestrator import HierarchicalOrchestrator
 from src.agents import create_architect_agent, create_auditor_agent
 from src.tasks import create_hierarchical_tasks
 
 
-# Re-export the config for convenience
-from src.workflows.hierarchical_orchestrator import HierarchicalWorkflowConfig
+@dataclass
+class HierarchicalWorkflowConfig:
+    """Cấu hình complete cho Hierarchical Workflow."""
+
+    # Orchestrator config
+    manager_llm_provider: Literal["zai", "google"] = "google"
+    verbose: bool = True
+    memory: bool = True
+
+    # Agents config
+    architect_provider: Literal["zai", "google"] = "zai"
+    auditor_provider: Literal["zai", "google"] = "google"
+
+    # Multiple auditors (scale feature)
+    use_multiple_auditors: bool = False
+    num_auditors: int = 1
 
 
 class HierarchicalWorkflow:
     """
-    Main entry point for Hierarchical Workflow execution.
+    High-level Hierarchical Workflow interface.
 
-    This class orchestrates the complete hierarchical workflow:
-    1. Creates HierarchicalOrchestrator with Manager Agent
-    2. Creates worker agents (Architect, Auditors)
-    3. Creates hierarchical tasks
-    4. Executes workflow with Manager coordination
-    5. Returns structured results
-
-    The hierarchical process allows:
-    - Manager Agent dynamically decides task execution order
-    - Easy scaling to multiple auditor agents
-    - Better context management between tasks
-    - Manager synthesizes final output from all workers
-
-    Example:
-        >>> from src.workflows import HierarchicalWorkflow, HierarchicalWorkflowConfig
-        >>>
-        >>> config = HierarchicalWorkflowConfig(
-        ...     manager_llm_provider="google",
-        ...     verbose=True,
-        ... )
-        >>>
-        >>> workflow = HierarchicalWorkflow(config)
-        >>> result = workflow.execute(
-        ...     user_requirement="User authentication system",
-        ...     num_auditors=2,
-        ... )
+    Usage:
+        config = HierarchicalWorkflowConfig()
+        workflow = HierarchicalWorkflow(config)
+        result = workflow.execute("Hệ thống đấu giá thời gian thực")
     """
 
     def __init__(self, config: HierarchicalWorkflowConfig):
-        """
-        Initialize the Hierarchical Workflow.
-
-        Args:
-            config: Workflow configuration including LLM providers,
-                   verbosity, memory settings, etc.
-        """
         self.config = config
-        self.orchestrator = HierarchicalOrchestrator(config)
-        self.architect: Optional[Agent] = None
-        self.auditors: List[Agent] = []
+        # Create orchestrator config from workflow config
+        from src.workflows.hierarchical_orchestrator import HierarchicalWorkflowConfig as OrchestratorConfig
+        orchestrator_config = OrchestratorConfig(
+            manager_llm_provider=config.manager_llm_provider,
+            verbose=config.verbose,
+            memory=config.memory,
+        )
+        self.orchestrator = HierarchicalOrchestrator(orchestrator_config)
+        self.agents: Dict[str, Agent] = {}
 
-    def create_agents(
-        self,
-        num_auditors: int = 1,
-        architect_verbose: bool = True,
-        architect_memory: bool = True,
-        auditor_verbose: bool = True,
-        auditor_memory: bool = True,
-    ) -> tuple[Agent, List[Agent]]:
-        """
-        Create worker agents for the hierarchical workflow.
-
-        Args:
-            num_auditors: Number of auditor agents to create (default: 1)
-                         Supports scaling to multiple auditors for different perspectives
-            architect_verbose: Enable verbose logging for architect (default: True)
-            architect_memory: Enable memory for architect agent (default: True)
-            auditor_verbose: Enable verbose logging for auditors (default: True)
-            auditor_memory: Enable memory for auditor agents (default: True)
-
-        Returns:
-            tuple[Agent, List[Agent]]: (architect_agent, list_of_auditor_agents)
-        """
-        # Create architect (single)
-        self.architect = create_architect_agent(
-            verbose=architect_verbose or self.config.verbose,
-            memory=architect_memory or self.config.memory,
-            allow_delegation=False,  # Architect doesn't delegate
+    def _create_agents(self):
+        """Tạo agents cho workflow."""
+        # Architect (White Hat)
+        self.agents["architect"] = create_architect_agent(
+            verbose=self.config.verbose,
+            memory=self.config.memory,
+            allow_delegation=False,
         )
 
-        # Create auditors (multiple for scaling)
-        self.auditors = [
-            create_auditor_agent(
-                verbose=auditor_verbose or self.config.verbose,
-                memory=auditor_memory or self.config.memory,
-                allow_delegation=False,  # Auditors don't delegate
-            )
-            for _ in range(num_auditors)
-        ]
-
-        return self.architect, self.auditors
-
-    def create_crew(
-        self,
-        workers: Optional[List[Agent]] = None,
-    ):
-        """
-        Create the hierarchical crew with Manager and workers.
-
-        Args:
-            workers: Optional list of worker agents. If None, uses
-                    previously created architect and auditors.
-
-        Returns:
-            Crew: The hierarchical crew object
-
-        Raises:
-            ValueError: If no workers provided and none created yet
-        """
-        if workers is None:
-            if self.architect is None or not self.auditors:
-                raise ValueError(
-                    "No workers available. Call create_agents() first "
-                    "or provide workers parameter."
+        # Auditor(s) (Black Hat)
+        if self.config.use_multiple_auditors:
+            # Scale: tạo nhiều auditors cho different aspects
+            for i in range(self.config.num_auditors):
+                self.agents[f"auditor_{i}"] = create_auditor_agent(
+                    verbose=self.config.verbose,
+                    memory=self.config.memory,
+                    allow_delegation=False,
                 )
-            workers = [self.architect] + self.auditors
-
-        return self.orchestrator.create_hierarchical_crew(workers=workers)
+        else:
+            # Single auditor cho tất cả phases
+            self.agents["auditor"] = create_auditor_agent(
+                verbose=self.config.verbose,
+                memory=self.config.memory,
+                allow_delegation=False,
+            )
 
     def execute(
         self,
         user_requirement: str,
-        num_auditors: int = 1,
-        create_auditors: bool = True,
-        assign_auditors_to_tasks: bool = True,
     ) -> Dict[str, Any]:
         """
-        Execute the complete hierarchical workflow.
-
-        This is the main entry point that:
-        1. Creates agents (architect + auditors)
-        2. Creates hierarchical crew with Manager
-        3. Creates tasks with proper dependencies
-        4. Executes workflow with Manager coordination
-        5. Returns structured results
+        Execute hierarchical workflow cho user requirement.
 
         Args:
-            user_requirement: Feature description from user
-            num_auditors: Number of auditor agents to create (default: 1)
-            create_auditors: Whether to create new auditors (default: True)
-                            Set to False if you want to reuse existing auditors
-            assign_auditors_to_tasks: Whether to distribute tasks across auditors (default: True)
-                                    If True and multiple auditors, different tasks
-                                    may be assigned to different auditors
+            user_requirement: Feature description
 
         Returns:
-            Dict[str, Any]: Results containing:
-                - manager_output: Output from Manager agent
-                - raw_output: Raw output from crew execution
-                - final_result: Parsed and structured result
-                - num_auditors: Number of auditors used
-                - num_tasks: Number of tasks executed
+            dict: Kết quả với keys:
+                - happy_path: HappyPath object (dict)
+                - business_exceptions: StressTestReport object (dict)
+                - technical_edge_cases: StressTestReport object (dict)
+                - manager_summary: Tổng hợp từ manager
         """
-        # Step 1: Create agents if needed
-        if create_auditors or self.architect is None or not self.auditors:
-            architect, auditors = self.create_agents(num_auditors=num_auditors)
-        else:
-            architect = self.architect
-            auditors = self.auditors
+        # Create agents
+        self._create_agents()
 
-        # Step 2: Create hierarchical crew
-        self.create_crew(workers=[architect] + auditors)
+        # Create tasks
+        architect = self.agents["architect"]
+        auditor = self.agents.get("auditor") or self.agents["auditor_0"]
 
-        # Step 3: Create tasks
         tasks = create_hierarchical_tasks(
             user_requirement=user_requirement,
             architect_agent=architect,
-            auditor_agent=auditors[0],  # Use first auditor as default
+            auditor_agent=auditor,
         )
 
-        # Step 4: Optionally distribute tasks across multiple auditors
-        if assign_auditors_to_tasks and len(auditors) > 1:
-            # Distribute auditor tasks across available auditors
-            # Task 0: Happy Path (architect) - keep as is
-            # Task 1: Business Exceptions (auditor) - assign to first auditor
-            # Task 2: Technical Edge Cases (auditor) - assign to second auditor if available
-            if len(auditors) >= 2 and len(tasks) >= 3:
-                tasks[2].agent = auditors[1]
-            # Continue distributing if more auditors and tasks available
-            for i in range(3, len(tasks)):
-                auditor_idx = (i - 1) % len(auditors)
-                tasks[i].agent = auditors[auditor_idx]
+        # Get worker agents
+        workers = list(self.agents.values())
 
-        # Step 5: Execute workflow
+        # Execute với hierarchical orchestrator
         result = self.orchestrator.execute_workflow(
             user_requirement=user_requirement,
             tasks=tasks,
+            workers=workers,
         )
 
-        # Step 6: Add metadata to result
-        result["num_auditors"] = len(auditors)
-        result["num_tasks"] = len(tasks)
+        # Parse và return structured result
+        return self._parse_workflow_result(result)
 
-        return result
-
-    def reset(self):
+    def _parse_workflow_result(self, raw_result: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Reset the workflow to allow re-execution with different configuration.
+        Parse raw result từ orchestrator thành structured output.
 
-        Clears the orchestrator crew and allows fresh execution.
+        Manager agent sẽ tổng hợp kết quả. Parse để extract Pydantic objects.
         """
-        self.orchestrator.reset()
-        self.architect = None
-        self.auditors = []
+        # TODO: Implement proper parsing
+        # Hiện tại return raw, sau này sẽ extract HappyPath và StressTestReport objects
+
+        return {
+            "happy_path": self._extract_happy_path(raw_result),
+            "business_exceptions": self._extract_business_exceptions(raw_result),
+            "technical_edge_cases": self._extract_technical_edge_cases(raw_result),
+            "manager_summary": raw_result.get("manager_output"),
+        }
+
+    def _extract_happy_path(self, raw_result: Dict) -> Dict[str, Any]:
+        """Extract happy path từ raw result."""
+        # TODO: Parse Pydantic object from manager output
+        return {"feature_name": "TODO", "steps": []}
+
+    def _extract_business_exceptions(self, raw_result: Dict) -> Dict[str, Any]:
+        """Extract business exceptions từ raw result."""
+        return {"edge_cases": []}
+
+    def _extract_technical_edge_cases(self, raw_result: Dict) -> Dict[str, Any]:
+        """Extract technical edge cases từ raw result."""
+        return {"edge_cases": []}
 
 
 def execute_hierarchical_workflow(
     user_requirement: str,
-    config: Optional[HierarchicalWorkflowConfig] = None,
-    num_auditors: int = 1,
+    manager_provider: Literal["zai", "google"] = "google",
+    architect_provider: Literal["zai", "google"] = "zai",
+    auditor_provider: Literal["zai", "google"] = "google",
+    verbose: bool = True,
+    use_multiple_auditors: bool = False,
 ) -> Dict[str, Any]:
     """
-    Convenience function to execute hierarchical workflow with minimal setup.
-
-    This is the simplest way to run the hierarchical workflow:
-    - Creates default config if not provided
-    - Initializes workflow
-    - Creates agents and crew
-    - Executes workflow
-    - Returns results
+    Convenience function để execute hierarchical workflow.
 
     Args:
-        user_requirement: Feature description from user
-        config: Optional workflow configuration. If None, uses defaults.
-        num_auditors: Number of auditor agents to create (default: 1)
+        user_requirement: Feature description
+        manager_provider: LLM provider cho Manager Agent
+        architect_provider: LLM provider cho Architect
+        auditor_provider: LLM provider cho Auditor
+        verbose: Enable verbose logging
+        use_multiple_auditors: Scale với nhiều auditors
 
     Returns:
-        Dict[str, Any]: Results containing:
-            - manager_output: Output from Manager agent
-            - raw_output: Raw output from crew execution
-            - final_result: Parsed and structured result
-            - num_auditors: Number of auditors used
-            - num_tasks: Number of tasks executed
+        dict: Workflow results
 
-    Example:
-        >>> from src.workflows.hierarchical_workflow import execute_hierarchical_workflow
-        >>>
+    Examples:
         >>> result = execute_hierarchical_workflow(
-        ...     user_requirement="Real-time notification system",
-        ...     num_auditors=2,
+        ...     "Hệ thống đấu giá thời gian thực",
+        ...     manager_provider="google",
         ... )
-        >>>
-        >>> print(result["final_result"])
+        >>> print(result["happy_path"]["feature_name"])
     """
-    # Create default config if not provided
-    if config is None:
-        config = HierarchicalWorkflowConfig()
-
-    # Initialize workflow
-    workflow = HierarchicalWorkflow(config)
-
-    # Execute and return results
-    return workflow.execute(
-        user_requirement=user_requirement,
-        num_auditors=num_auditors,
+    config = HierarchicalWorkflowConfig(
+        manager_llm_provider=manager_provider,
+        architect_provider=architect_provider,
+        auditor_provider=auditor_provider,
+        verbose=verbose,
+        use_multiple_auditors=use_multiple_auditors,
     )
+
+    workflow = HierarchicalWorkflow(config)
+    return workflow.execute(user_requirement)
 
 
 __all__ = [
