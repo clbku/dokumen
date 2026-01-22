@@ -5,7 +5,6 @@ from src.tasks.task_definitions import (
     BusinessExceptionsTaskDefinition,
     TechnicalEdgeCasesTaskDefinition,
     create_hierarchical_tasks,
-    get_task_for_phase,
 )
 
 __all__ = [
@@ -13,5 +12,4 @@ __all__ = [
     "BusinessExceptionsTaskDefinition",
     "TechnicalEdgeCasesTaskDefinition",
     "create_hierarchical_tasks",
-    "get_task_for_phase",
 ]
