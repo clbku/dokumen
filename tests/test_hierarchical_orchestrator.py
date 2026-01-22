@@ -1,11 +1,11 @@
 import pytest
 from crewai import Agent, Task
-from src.workflows import HierarchicalOrchestrator, HierarchicalWorkflowConfig
+from src.workflows import HierarchicalOrchestrator, HierarchicalOrchestratorConfig
 
 
 def test_hierarchical_orchestrator_init():
     """Test khởi tạo orchestrator với config."""
-    config = HierarchicalWorkflowConfig(
+    config = HierarchicalOrchestratorConfig(
         manager_llm_provider="google",
         verbose=True
     )
@@ -18,7 +18,7 @@ def test_hierarchical_orchestrator_init():
 
 def test_create_hierarchical_crew():
     """Test tạo hierarchical crew với manager."""
-    config = HierarchicalWorkflowConfig(
+    config = HierarchicalOrchestratorConfig(
         manager_llm_provider="google",
         verbose=True
     )
@@ -40,7 +40,7 @@ def test_create_hierarchical_crew():
 
 def test_execute_workflow():
     """Test execute workflow với hierarchical process."""
-    config = HierarchicalWorkflowConfig(
+    config = HierarchicalOrchestratorConfig(
         manager_llm_provider="google",
         verbose=True
     )
@@ -66,8 +66,14 @@ def test_execute_workflow():
     # Execute
     result = orchestrator.execute_workflow(
         user_requirement="Hệ thống đăng nhập với email và password",
-        tasks=[happy_path_task, edge_case_task]
+        tasks=[happy_path_task, edge_case_task],
+        workers=[architect, auditor]
     )
 
     assert result is not None
-    assert "happy_path" in result or "edge_cases" in result
+    # Verify result has expected keys from execute_workflow
+    assert "manager_output" in result
+    assert "raw_output" in result
+    assert "final_result" in result
+    # Verify raw_output contains some content (crew executed successfully)
+    assert result["raw_output"] is not None
