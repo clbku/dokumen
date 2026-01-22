@@ -9,8 +9,8 @@ Theo PRODUCT_VISION.md, mọi tài liệu PHẢI vượt qua Quality Gate thresh
 - no_ai_speak: 0 instances
 """
 
-from pydantic import BaseModel, Field, model_validator
-from typing import List
+from pydantic import BaseModel, Field, field_validator
+from typing import List, Dict
 from enum import Enum
 
 
@@ -32,8 +32,9 @@ class QualityGateReport(BaseModel):
     ai_speak_instances: int = Field(..., ge=0, description="Số lần AI-speak detected")
     maturity_score: float = Field(0, ge=0, le=10, description="Overall maturity score")
 
-    @model_validator(mode='after')
-    def calculate_maturity_score(self) -> 'QualityGateReport':
+    @field_validator('maturity_score', mode='before')
+    @classmethod
+    def calculate_maturity_score(cls, v: float, info) -> float:
         """
         Calculate overall maturity score based on Product Vision metrics.
 
@@ -44,11 +45,12 @@ class QualityGateReport(BaseModel):
         - Logic Consistency: 10% weight (inverted)
         - No AI-Speak: 5% weight (inverted)
         """
-        depth = self.depth_score
-        edge_cases = self.edge_case_coverage
-        feasibility = self.technical_feasibility
-        contradictions = self.logic_consistency
-        ai_speak = self.ai_speak_instances
+        values = info.data
+        depth = values.get('depth_score', 0)
+        edge_cases = values.get('edge_case_coverage', 0)
+        feasibility = values.get('technical_feasibility', 0)
+        contradictions = values.get('logic_consistency', 0)
+        ai_speak = values.get('ai_speak_instances', 0)
 
         # Normalize edge cases to 0-10 scale (5+ cases = 10 points)
         edge_score = min(edge_cases / 5 * 10, 10)
@@ -68,8 +70,7 @@ class QualityGateReport(BaseModel):
             clarity_score * 0.05
         )
 
-        self.maturity_score = round(maturity, 2)
-        return self
+        return round(maturity, 2)
 
     @property
     def passed_quality_gate(self) -> bool:
