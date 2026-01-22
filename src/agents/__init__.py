@@ -44,6 +44,9 @@ from src.agents.chief_technology_officer import (
     get_minimum_acceptable_score,
 )
 
+# Phase 4: Multi-Agent Role Definitions for Aggregation & Publishing
+from src.agents.multi_agent_roles import create_editor_agent
+
 # Backward compatibility aliases
 create_white_hat_agent = create_architect_agent
 create_black_hat_agent = create_auditor_agent
@@ -329,6 +332,8 @@ __all__ = [
     "create_green_hat_agent",
     "create_deep_spec_crew",
     "create_agent_by_role",
+    # Phase 4: Multi-Agent Role Definitions
+    "create_editor_agent",
     # Task template functions (new names)
     "get_architect_task_template",
     "get_auditor_task_template",
