@@ -212,19 +212,16 @@ class TestHierarchicalValidator:
         from src.validation.hierarchical_validator import HierarchicalValidator
 
         validator = HierarchicalValidator()
-        result = validator.validate_hierarchical_result(
-            happy_path=happy_path,
-            business_exceptions=business_exceptions,
-            technical_edge_cases=technical_edge_cases,
-        )
+        result = {
+            "happy_path": happy_path,
+            "business_exceptions": business_exceptions,
+            "technical_edge_cases": technical_edge_cases,
+        }
+        is_valid, errors = validator.validate_hierarchical_result(result)
 
         # Assert validation passes
-        assert result["passed"] is True
-        assert result["happy_path_valid"] is True
-        assert result["business_exceptions_valid"] is True
-        assert result["technical_edge_cases_valid"] is True
-        assert len(result["errors"]) == 0
-        assert len(result["warnings"]) == 0
+        assert is_valid is True
+        assert len(errors) == 0
 
     def test_validate_hierarchical_result_fail_not_enough_steps(self):
         """
@@ -418,16 +415,16 @@ class TestHierarchicalValidator:
         from src.validation.hierarchical_validator import HierarchicalValidator
 
         validator = HierarchicalValidator()
-        result = validator.validate_hierarchical_result(
-            happy_path=happy_path,
-            business_exceptions=business_exceptions,
-            technical_edge_cases=technical_edge_cases,
-        )
+        result = {
+            "happy_path": happy_path,
+            "business_exceptions": business_exceptions,
+            "technical_edge_cases": technical_edge_cases,
+        }
+        is_valid, errors = validator.validate_hierarchical_result(result)
 
         # Assert validation fails
-        assert result["passed"] is False
-        assert result["happy_path_valid"] is False
-        assert "at least 3 steps" in result["errors"][0].lower()
+        assert is_valid is False
+        assert "at least 3 steps" in errors[0].lower()
 
     def test_validate_hierarchical_result_fail_low_scores(self):
         """
@@ -511,17 +508,16 @@ class TestHierarchicalValidator:
         from src.validation.hierarchical_validator import HierarchicalValidator
 
         validator = HierarchicalValidator()
-        result = validator.validate_hierarchical_result(
-            happy_path=happy_path,
-            business_exceptions=business_exceptions,
-            technical_edge_cases=technical_edge_cases,
-        )
+        result = {
+            "happy_path": happy_path,
+            "business_exceptions": business_exceptions,
+            "technical_edge_cases": technical_edge_cases,
+        }
+        is_valid, errors = validator.validate_hierarchical_result(result)
 
         # Assert validation fails due to low scores
-        assert result["passed"] is False
-        assert result["business_exceptions_valid"] is False
-        assert result["technical_edge_cases_valid"] is False
-        assert any("score" in error.lower() for error in result["errors"])
+        assert is_valid is False
+        assert any("score" in error.lower() for error in errors)
 
     def test_validate_technical_keywords_in_business(self):
         """
@@ -656,13 +652,15 @@ class TestHierarchicalValidator:
         from src.validation.hierarchical_validator import HierarchicalValidator
 
         validator = HierarchicalValidator()
-        result = validator.validate_hierarchical_result(
-            happy_path=happy_path,
-            business_exceptions=business_exceptions,
-            technical_edge_cases=technical_edge_cases,
-        )
+        result = {
+            "happy_path": happy_path,
+            "business_exceptions": business_exceptions,
+            "technical_edge_cases": technical_edge_cases,
+        }
+        is_valid, errors = validator.validate_hierarchical_result(result)
 
-        # Should pass but have warnings about technical keywords in business
-        assert result["passed"] is True  # Overall passes
-        assert len(result["warnings"]) > 0
-        assert any("technical" in warning.lower() for warning in result["warnings"])
+        # Should pass but have errors about technical keywords in business
+        # Warnings are now included in errors for spec compliance
+        assert is_valid is True  # Overall passes (warnings don't fail validation)
+        assert len(errors) > 0  # Should have warnings in errors list
+        assert any("technical" in error.lower() for error in errors)

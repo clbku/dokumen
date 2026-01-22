@@ -77,29 +77,29 @@ class HierarchicalValidator:
 
     def validate_hierarchical_result(
         self,
-        happy_path: HappyPath,
-        business_exceptions: StressTestReport,
-        technical_edge_cases: StressTestReport,
-    ) -> Dict[str, Any]:
+        result: Dict[str, Any],
+    ) -> Tuple[bool, List[str]]:
         """
         Validate the complete hierarchical workflow result.
 
         Args:
-            happy_path: HappyPath object from workflow
-            business_exceptions: StressTestReport for business edge cases
-            technical_edge_cases: StressTestReport for technical edge cases
+            result: Dict containing:
+                - happy_path: HappyPath object from workflow
+                - business_exceptions: StressTestReport for business edge cases
+                - technical_edge_cases: StressTestReport for technical edge cases
 
         Returns:
-            dict: Validation result with keys:
-                - passed (bool): Overall validation status
-                - happy_path_valid (bool): Happy path validation status
-                - business_exceptions_valid (bool): Business exceptions validation status
-                - technical_edge_cases_valid (bool): Technical edge cases validation status
-                - errors (List[str]): List of error messages
-                - warnings (List[str]): List of warning messages
+            Tuple[bool, List[str]]: (is_valid, list of error messages)
+                - is_valid: True if all validations pass (warnings don't fail)
+                - errors: List of all issues (both errors and warnings)
         """
         errors: List[str] = []
         warnings: List[str] = []
+
+        # Extract components from result dict
+        happy_path = result["happy_path"]
+        business_exceptions = result["business_exceptions"]
+        technical_edge_cases = result["technical_edge_cases"]
 
         # Validate happy path
         happy_path_valid, happy_path_errors = self._validate_happy_path(happy_path)
@@ -125,17 +125,15 @@ class HierarchicalValidator:
         )
         warnings.extend(overlap_warnings)
 
-        # Overall validation passes if all components pass
-        passed = happy_path_valid and business_valid and technical_valid
+        # Combine errors and warnings for the return value
+        # The spec expects all issues in the errors list
+        all_issues = errors + warnings
 
-        return {
-            "passed": passed,
-            "happy_path_valid": happy_path_valid,
-            "business_exceptions_valid": business_valid,
-            "technical_edge_cases_valid": technical_valid,
-            "errors": errors,
-            "warnings": warnings,
-        }
+        # Overall validation passes if all components pass
+        # Warnings don't cause validation to fail
+        is_valid = happy_path_valid and business_valid and technical_valid
+
+        return (is_valid, all_issues)
 
     def _validate_happy_path(self, happy_path: HappyPath) -> Tuple[bool, List[str]]:
         """

@@ -134,14 +134,17 @@ class HierarchicalWorkflow:
         parsed_result = self._parse_workflow_result(result)
 
         # Validate the parsed results
-        validation_result = self.validator.validate_hierarchical_result(
-            happy_path=parsed_result["happy_path"],
-            business_exceptions=parsed_result["business_exceptions"],
-            technical_edge_cases=parsed_result["technical_edge_cases"],
-        )
+        is_valid, errors = self.validator.validate_hierarchical_result(parsed_result)
 
-        # Add validation results to output
-        parsed_result["validation"] = validation_result
+        if not is_valid:
+            print("\n⚠️  Validation Errors:")
+            for error in errors:
+                print(f"  - {error}")
+
+        parsed_result["validation"] = {
+            "is_valid": is_valid,
+            "errors": errors,
+        }
 
         return parsed_result
 
