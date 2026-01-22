@@ -28,7 +28,7 @@ class HierarchicalWorkflowConfig:
     # Orchestrator config
     manager_llm_provider: Literal["zai", "google"] = "google"
     verbose: bool = True
-    memory: bool = True
+    memory: bool = True  # RAG memory enabled with Google Gemini embeddings
 
     # Agents config
     architect_provider: Literal["zai", "google"] = "zai"
@@ -52,8 +52,8 @@ class HierarchicalWorkflow:
     def __init__(self, config: HierarchicalWorkflowConfig):
         self.config = config
         # Create orchestrator config from workflow config
-        from src.workflows.hierarchical_orchestrator import HierarchicalWorkflowConfig as OrchestratorConfig
-        orchestrator_config = OrchestratorConfig(
+        from src.workflows.hierarchical_orchestrator import HierarchicalOrchestratorConfig
+        orchestrator_config = HierarchicalOrchestratorConfig(
             manager_llm_provider=config.manager_llm_provider,
             verbose=config.verbose,
             memory=config.memory,

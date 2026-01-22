@@ -122,8 +122,8 @@ class EdgeCase(BaseModel):
     @classmethod
     def validate_scenario_id(cls, v: str) -> str:
         """Ensure scenario ID follows pattern: EDGE-{feature_id}-{number}"""
-        if not v.startswith('EDGE-'):
-            raise ValueError("Scenario ID must start with 'EDGE-'")
+        if not (v.startswith('EDGE-') or v.startswith('EC-')):
+            raise ValueError("Scenario ID must start with 'EDGE-' or 'EC-'")
         return v
 
 class StressTestReport(BaseModel):

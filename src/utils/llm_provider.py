@@ -201,6 +201,12 @@ AGENT_PROVIDER_RECOMMENDATIONS = {
         "reason": "Structured output for architecture design, precise technical details",
         "temperature": 0.2,  # Low temperature for consistency
     },
+    # "white_hat": {
+    #     "provider": LLMProvider.GOOGLE,
+    #     "model": ModelConfig.GEMINI_THINKING,
+    #     "reason": "Structured output for architecture design, precise technical details",
+    #     "temperature": 0.2,   # Low temperature for consistency
+    # },
     "black_hat": {
         "provider": LLMProvider.GOOGLE,
         "model": ModelConfig.GEMINI_THINKING,
@@ -242,3 +248,71 @@ def get_agent_llm(agent_role: Literal["white_hat", "black_hat", "green_hat"]) ->
         model=config["model"].value,
         temperature=config["temperature"],
     )
+
+
+# ============================================================
+# Google Gemini Embeddings for CrewAI Memory/RAG Storage
+# ============================================================
+
+def get_google_gemini_embedder_config():
+    """
+    Lấy cấu hình embedder Google Gemini cho CrewAI memory.
+
+    CrewAI hỗ trợ google-generativeai provider cho embeddings.
+    Function này trả về config dict để sử dụng trong Crew.
+
+    Returns:
+        dict: Embedder configuration cho CrewAI
+
+    Usage:
+        >>> from src.utils.llm_provider import get_google_gemini_embedder_config
+        >>> crew = Crew(
+        ...     memory=True,
+        ...     embedder=get_google_gemini_embedder_config()
+        ... )
+
+    Note:
+        Cần GOOGLE_API_KEY trong environment (.env file)
+    """
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "GOOGLE_API_KEY not found in environment. "
+            "Please set it in your .env file."
+        )
+
+    return {
+        "provider": "google-generativeai",
+        "config": {
+            "api_key": api_key,
+            "model_name": "gemini-embedding-001"  # hoặc "text-embedding-004"
+        }
+    }
+
+
+def configure_google_gemini_for_memory():
+    """
+    Cấu hình environment để CrewAI sử dụng Google Gemini embeddings.
+
+    Đây là shortcut function để set environment variables trước khi tạo Crew.
+    CrewAI sẽ tự động đọc các env vars này khi tạo agents với memory=True.
+
+    Usage:
+        >>> # Trước khi tạo Crew
+        >>> configure_google_gemini_for_memory()
+        >>> crew = Crew(
+        ...     agents=[...],
+        ...     tasks=[...],
+        ...     memory=True
+        ... )
+    """
+    import os
+
+    # Configure Google API key cho embeddings
+    os.environ["CREWAI_EMBEDDING_PROVIDER"] = "google-generativeai"
+    os.environ["CREWAI_EMBEDDING_MODEL_NAME"] = "gemini-embedding-001"
+
+    print("✓ Configured Google Gemini embeddings for CrewAI memory")
+    print("  Provider: google-generativeai")
+    print("  Model: gemini-embedding-001")
+    print("  Set via environment variables for CrewAI")

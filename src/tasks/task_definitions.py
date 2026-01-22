@@ -95,6 +95,7 @@ class BusinessExceptionsTaskDefinition:
             - Ví dụ: số dư không đủ, chưa đủ cấp độ, hết hạn thời gian, không đủ quyền
             - KHÔNG tìm technical issues (network, database, concurrency)
             - Mỗi edge case có: trigger, severity, mitigation
+            - QUAN TRỌNG: ID phải bắt đầu bằng "EDGE-", ví dụ: EDGE-BIZ-001
 
             Output format: StressTestReport Pydantic object (business exceptions only)
             """,
@@ -148,6 +149,7 @@ class TechnicalEdgeCasesTaskDefinition:
             - Ví dụ: race conditions, network timeouts, database deadlocks, concurrent writes
             - KHÔNG lặp lại business exceptions từ Phase 2
             - Mỗi edge case có: trigger, severity, mitigation
+            - QUAN TRỌNG: ID phải bắt đầu bằng "EDGE-", ví dụ: EDGE-TECH-001
 
             Output format: StressTestReport Pydantic object (technical edge cases only)
             """,

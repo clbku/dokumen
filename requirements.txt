@@ -2,3 +2,6 @@ crewai
 crewai[tools]
 langchain_google_genai
 pydantic
+pytest
+google-generativeai
+duckduckgo-search

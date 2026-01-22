@@ -1,4 +1,11 @@
 import os
+import sys
+
+# Add project root to sys.path to allow imports from src
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 import argparse
 from crewai import Agent, Task, Crew, LLM
 from dotenv import load_dotenv

@@ -11,15 +11,15 @@ from crewai import Agent, Task, Crew, LLM
 from dotenv import load_dotenv
 import os
 
-from src.utils.llm_provider import get_llm
+from src.utils.llm_provider import get_llm, get_google_gemini_embedder_config
 from src.schemas import HappyPath, StressTestReport
 
 load_dotenv()
 
 
 @dataclass
-class HierarchicalWorkflowConfig:
-    """Cấu hình cho Hierarchical Workflow."""
+class HierarchicalOrchestratorConfig:
+    """Cấu hình cho Hierarchical Orchestrator."""
 
     # Manager LLM config
     manager_llm_provider: Literal["zai", "google"] = "google"
@@ -66,7 +66,7 @@ class HierarchicalOrchestrator:
     - Context management tốt hơn
     """
 
-    def __init__(self, config: HierarchicalWorkflowConfig):
+    def __init__(self, config: HierarchicalOrchestratorConfig):
         self.config = config
         self.manager_agent: Optional[Agent] = None
         self.crew: Optional[Crew] = None
@@ -85,6 +85,15 @@ class HierarchicalOrchestrator:
             memory=self.config.memory,
             allow_delegation=self.config.allow_delegation_to_manager,
             # Manager không làm task cụ thể, chỉ điều phối
+            instructions=[
+                "LUÔN TRẢ LỜI BẰNG TIẾNG VIỆT.",
+                "Điều phối worker agents để hoàn thành technical design",
+                "Đánh giá kết quả từ từng worker trước khi quyết định bước tiếp theo",
+                "Tổng hợp output từ tất cả workers thành final document",
+                "Đảm bảo tất cả aspects được cover: happy path, edge cases, security",
+                "Ra quyết định dựa trên context và chất lượng output của workers",
+                "Phân công task phù hợp cho từng worker dựa trên khả năng của họ",
+            ],
         )
         return self.manager_agent
 
@@ -108,6 +117,9 @@ class HierarchicalOrchestrator:
 
         all_agents = [self.manager_agent] + workers
 
+        # Configure Google Gemini embeddings for memory/RAG
+        embedder_config = get_google_gemini_embedder_config()
+
         self.crew = Crew(
             agents=all_agents,
             tasks=tasks,
@@ -115,6 +127,7 @@ class HierarchicalOrchestrator:
             manager_llm=get_llm(self.config.manager_llm_provider),
             verbose=self.config.verbose,
             memory=self.config.memory,
+            embedder=embedder_config,
         )
 
         return self.crew
