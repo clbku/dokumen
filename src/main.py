@@ -8,8 +8,6 @@ load_dotenv()
 
 # Import hierarchical workflow components
 from src.workflows import (
-    HierarchicalWorkflow,
-    HierarchicalWorkflowConfig,
     execute_hierarchical_workflow,
 )
 
@@ -44,73 +42,12 @@ def get_llm(provider):
     else:
         raise ValueError(f"Unknown provider: {provider}")
 
-def main():
-    try:
-        print("Initializing Agents with different providers...")
-        
-        # 1. Define LLMs
-        # You can swap these providers based on your .env configuration
-        llm_openai = get_llm("zai")
-        llm_google = get_llm("google") 
-
-        # 2. Define Agents
-        # Agent A uses OpenAI
-        agent_a = Agent(
-            role='OpenAI Representative',
-            goal='Introduce yourself and your underlying model',
-            backstory='You are an AI assistant powered by OpenAI.',
-            verbose=True,
-            memory=False,
-            llm=llm_openai
-        )
-
-        # Agent B uses Google Gemini
-        agent_b = Agent(
-            role='Google Gemini Representative',
-            goal='Introduce yourself and your underlying model',
-            backstory='You are an AI assistant powered by Google Gemini.',
-            verbose=True,
-            memory=False,
-            llm=llm_google
-        )
-
-        # 3. Define Tasks
-        task_a = Task(
-            description='Say hello and state which model provider you are using.',
-            expected_output='A greeting from the OpenAI agent.',
-            agent=agent_a,
-        )
-
-        task_b = Task(
-            description='Say hello and state which model provider you are using. Also compliment the other agent.',
-            expected_output='A greeting from the Google agent.',
-            agent=agent_b,
-        )
-
-        # 4. Define Crew
-        crew = Crew(
-            agents=[agent_a, agent_b],
-            tasks=[task_a, task_b],
-            process='sequential'
-        )
-
-        # 5. Kickoff
-        result = crew.kickoff()
-        print("\n########################\n")
-        print("Crew Execution Result:")
-        print(result)
-        print("\n########################\n")
-
-    except Exception as e:
-        print(f"Error during execution: {e}")
-
 def run_hierarchical_workflow(
     user_requirement: str,
     manager_llm_provider: str = "google",
     manager_llm_model: str = "gemini/gemini-3-pro-preview",
     num_auditors: int = 1,
     verbose: bool = True,
-    memory: bool = True,
 ):
     """
     Run hierarchical workflow with Manager Agent coordinating workers.
@@ -121,7 +58,6 @@ def run_hierarchical_workflow(
         manager_llm_model: Model name for Manager agent
         num_auditors: Number of auditor agents to create (default: 1)
         verbose: Enable verbose logging (default: True)
-        memory: Enable agent memory (default: True)
 
     Returns:
         Dict containing execution results
@@ -134,19 +70,11 @@ def run_hierarchical_workflow(
     print(f"Number of Auditors: {num_auditors}")
     print("="*60 + "\n")
 
-    # Create configuration
-    config = HierarchicalWorkflowConfig(
-        manager_llm_provider=manager_llm_provider,
-        manager_llm_model=manager_llm_model,
-        verbose=verbose,
-        memory=memory,
-    )
-
     # Execute workflow
     result = execute_hierarchical_workflow(
         user_requirement=user_requirement,
-        config=config,
-        num_auditors=num_auditors,
+        manager_provider=manager_llm_provider,
+        verbose=verbose,
     )
 
     # Print results
