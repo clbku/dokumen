@@ -12,7 +12,7 @@ from crewai import Agent
 from src.workflows import (
     HierarchicalOrchestrator,
 )
-from src.workflows.hierarchical_orchestrator import HierarchicalWorkflowConfig as OrchestratorConfig
+from src.workflows.hierarchical_orchestrator import HierarchicalOrchestratorConfig as OrchestratorConfig
 from src.agents import create_architect_agent, create_auditor_agent
 from src.tasks import create_hierarchical_tasks
 

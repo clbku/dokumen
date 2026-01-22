@@ -19,6 +19,8 @@ from src.agents import create_architect_agent, create_auditor_agent
 from src.tasks import create_hierarchical_tasks
 from src.validation.hierarchical_validator import HierarchicalValidator
 from src.schemas import HappyPath, StressTestReport, FlowStep, EdgeCase, MitigationStrategy, RiskLevel
+from src.aggregation import export_sdd, DebateOrchestrator, DebateConfig
+from src.templates import SDD_TEMPLATE
 
 
 @dataclass
@@ -37,6 +39,11 @@ class HierarchicalWorkflowConfig:
     # Multiple auditors (scale feature)
     use_multiple_auditors: bool = False
     num_auditors: int = 1
+
+    # Phase 4: Aggregation & Publishing (Automatic post-processing)
+    enable_phase4_export: bool = True
+    phase4_output_path: str = "./output"
+    phase4_enforce_quality_gate: bool = False
 
 
 class HierarchicalWorkflow:
@@ -146,6 +153,12 @@ class HierarchicalWorkflow:
             "errors": errors,
         }
 
+        # Phase 4: Automatic Aggregation & Publishing
+        if self.config.enable_phase4_export:
+            print("\n📦 Phase 4: Aggregation & Publishing...")
+            phase4_result = self._run_phase4_export(parsed_result)
+            parsed_result["phase4_export"] = phase4_result
+
         return parsed_result
 
     def _parse_workflow_result(self, raw_result: Dict[str, Any]) -> Dict[str, Any]:
@@ -164,6 +177,149 @@ class HierarchicalWorkflow:
             "technical_edge_cases": self._extract_technical_edge_cases(raw_result, task_results),
             "manager_summary": raw_result.get("manager_output"),
         }
+
+    def _run_phase4_export(self, parsed_result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Run Phase 4: Aggregation & Publishing as automatic post-processing.
+
+        This phase aggregates all outputs, runs multi-agent debate, and exports
+        the final SDD document with quality gate enforcement.
+        """
+        try:
+            # Import agent creation functions
+            from src.agents import (
+                create_white_hat_agent,
+                create_black_hat_agent,
+                create_green_hat_agent,
+                create_editor_agent,
+            )
+
+            # Step 1: Setup Multi-Agent Debate for quality review
+            debate_config = DebateConfig(
+                white_provider="google",
+                black_provider="google",
+                green_provider="google",
+                editor_provider="google",
+                verbose=self.config.verbose,
+            )
+            debate_orchestrator = DebateOrchestrator(debate_config)
+
+            # Register agents for the debate
+            debate_orchestrator.register_agent(
+                "white", create_white_hat_agent(verbose=self.config.verbose)
+            )
+            debate_orchestrator.register_agent(
+                "black", create_black_hat_agent(verbose=self.config.verbose)
+            )
+            debate_orchestrator.register_agent(
+                "green", create_green_hat_agent(verbose=self.config.verbose)
+            )
+            debate_orchestrator.register_agent(
+                "editor", create_editor_agent(verbose=self.config.verbose)
+            )
+
+            print("  🔍 Running multi-agent debate review...")
+            debate_result = debate_orchestrator.run_debate(
+                aggregated_data=parsed_result,
+                template=SDD_TEMPLATE,
+            )
+
+            # Step 2: Prepare flattened data for export
+            # Convert Pydantic objects to flat dict structure for export_sdd
+            export_data = self._prepare_export_data(parsed_result)
+
+            # Step 3: Export SDD with Quality Gate
+            print("  📄 Exporting SDD document...")
+            export_result = export_sdd(
+                aggregated_data=export_data,
+                template=SDD_TEMPLATE,
+                output_path=self.config.phase4_output_path,
+                enforce_quality_gate=self.config.phase4_enforce_quality_gate,
+            )
+
+            return {
+                "success": True,
+                "debate_result": debate_result,
+                "export_result": export_result,
+                "output_path": self.config.phase4_output_path,
+            }
+
+        except Exception as e:
+            print(f"  ⚠️  Phase 4 export failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    def _prepare_export_data(self, parsed_result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Prepare flattened export data from parsed workflow result.
+
+        Converts Pydantic objects to flat dict structure expected by export_sdd.
+        """
+        export_data = {
+            "version": "1.0",
+            "date": "2026-01-22",
+            "author": "Deep-Spec AI",
+            # Template required fields with defaults
+            "business_context": "Business context extracted from workflow analysis",
+            "mermaid_code": "graph TD\nA[User] --> B[System]\nB --> C[Database]",
+            "workflow_table": "| Step | Action | Description | Output |\n|------|--------|-------------|--------|\n",
+            "data_schemas": "# Data models\n\nclass BaseModel:\n    pass",
+            "tech_stack": {},
+        }
+
+        for key, value in parsed_result.items():
+            if key == "validation":
+                continue  # Skip validation
+
+            if hasattr(value, "model_dump"):  # Pydantic v2
+                value_dict = value.model_dump()
+            elif hasattr(value, "dict"):  # Pydantic v1
+                value_dict = value.dict()
+            elif isinstance(value, dict):
+                value_dict = value
+            else:
+                value_dict = value
+
+            # Flatten structures for export
+            if key == "happy_path" and isinstance(value_dict, dict):
+                export_data["feature_name"] = value_dict.get("feature_name", "Unknown Feature")
+                export_data["feature_id"] = value_dict.get("feature_id", "")
+                export_data["description"] = value_dict.get("description", "")
+                export_data["happy_path"] = value_dict.get("steps", [])
+                export_data["post_conditions"] = value_dict.get("post_conditions", [])
+                export_data["business_value"] = value_dict.get("business_value", "")
+
+                # Generate workflow table from steps
+                steps = value_dict.get("steps", [])
+                if steps:
+                    table_rows = []
+                    for step in steps:
+                        table_rows.append(
+                            f"| {step.get('step_number', '')} | {step.get('action', '')} | {step.get('description', step.get('outcome', ''))} | {step.get('outcome', '')} |"
+                        )
+                    export_data["workflow_table"] = "\n".join(["| Step | Action | Description | Output |", "|------|--------|-------------|--------|"] + table_rows)
+
+            elif "exceptions" in key:
+                # Prefer business_exceptions for edge_cases
+                if "edge_cases" not in export_data and isinstance(value_dict, dict):
+                    edge_cases = value_dict.get("edge_cases", [])
+                    export_data["edge_cases"] = edge_cases
+                    export_data["resilience_score"] = value_dict.get("resilience_score", 0)
+                    export_data["coverage_score"] = value_dict.get("coverage_score", 0)
+
+                    # Generate edge cases table
+                    if edge_cases:
+                        table_rows = []
+                        for case in edge_cases:
+                            mitigation = case.get("mitigation", {})
+                            table_rows.append(
+                                f"| {case.get('description', '')} | {case.get('trigger_condition', '')} | {mitigation.get('description', 'N/A')} |"
+                            )
+                        export_data["edge_cases_list"] = "\n".join(["| Scenario | Trigger | Mitigation |", "|----------|---------|------------|"] + table_rows)
+
+        return export_data
 
     def _extract_happy_path(self, raw_result: Dict, task_results: Dict) -> HappyPath:
         """Extract happy path từ raw result."""
@@ -371,9 +527,14 @@ def execute_hierarchical_workflow(
     auditor_provider: Literal["zai", "google"] = "google",
     verbose: bool = True,
     use_multiple_auditors: bool = False,
+    enable_phase4_export: bool = True,
+    phase4_output_path: str = "./output",
+    phase4_enforce_quality_gate: bool = False,
 ) -> Dict[str, Any]:
     """
     Convenience function để execute hierarchical workflow.
+
+    Phase 4 (Aggregation & Publishing) runs automatically after workflow completes.
 
     Args:
         user_requirement: Feature description
@@ -382,9 +543,12 @@ def execute_hierarchical_workflow(
         auditor_provider: LLM provider cho Auditor
         verbose: Enable verbose logging
         use_multiple_auditors: Scale với nhiều auditors
+        enable_phase4_export: Enable automatic Phase 4 export (default: True)
+        phase4_output_path: Output path for SDD documents (default: "./output")
+        phase4_enforce_quality_gate: Enforce quality gate validation (default: False)
 
     Returns:
-        dict: Workflow results
+        dict: Workflow results with additional 'phase4_export' key if enabled
 
     Examples:
         >>> result = execute_hierarchical_workflow(
@@ -392,6 +556,8 @@ def execute_hierarchical_workflow(
         ...     manager_provider="google",
         ... )
         >>> print(result["happy_path"]["feature_name"])
+        >>> # Phase 4 result (if enabled):
+        >>> print(result["phase4_export"]["success"])
     """
     config = HierarchicalWorkflowConfig(
         manager_llm_provider=manager_provider,
@@ -399,6 +565,9 @@ def execute_hierarchical_workflow(
         auditor_provider=auditor_provider,
         verbose=verbose,
         use_multiple_auditors=use_multiple_auditors,
+        enable_phase4_export=enable_phase4_export,
+        phase4_output_path=phase4_output_path,
+        phase4_enforce_quality_gate=phase4_enforce_quality_gate,
     )
 
     workflow = HierarchicalWorkflow(config)

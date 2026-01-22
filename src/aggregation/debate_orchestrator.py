@@ -84,9 +84,43 @@ class DebateOrchestrator:
         # TODO: Implement actual debate with LLM calls
         # Hiện tại return mock structure
 
+        # Convert Pydantic objects to flat dict for quality gate validation
+        # The quality gate expects: happy_path (list), edge_cases (list), tech_stack (dict)
+        extracted_data = {}
+
+        for key, value in aggregated_data.items():
+            if hasattr(value, 'model_dump'):  # Pydantic v2
+                value_dict = value.model_dump()
+            elif hasattr(value, 'dict'):  # Pydantic v1
+                value_dict = value.dict()
+            elif isinstance(value, dict):
+                value_dict = value
+            else:
+                value_dict = value
+
+            # Flatten nested structures for quality gate
+            if key == 'happy_path' and isinstance(value_dict, dict):
+                # Extract steps list from HappyPath object
+                extracted_data['happy_path'] = value_dict.get('steps', [])
+                # Also add other fields that might be useful
+                extracted_data['feature_name'] = value_dict.get('feature_name', '')
+                extracted_data['description'] = value_dict.get('description', '')
+            elif 'exceptions' in key or 'edge_cases' in key:
+                # Extract edge_cases from StressTestReport
+                if isinstance(value_dict, dict):
+                    edge_cases = value_dict.get('edge_cases', [])
+                    # Only keep the first set of edge cases (prefer business_exceptions)
+                    if 'edge_cases' not in extracted_data:
+                        extracted_data['edge_cases'] = edge_cases
+            elif isinstance(value_dict, dict):
+                # Merge other dict fields
+                extracted_data.update(value_dict)
+            else:
+                extracted_data[key] = value_dict
+
         mock_quality_report = validate_quality_gate(
             content="Mock content",
-            extracted_data=aggregated_data,
+            extracted_data=extracted_data,
         )
 
         return {

@@ -14,19 +14,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import hierarchical workflow components
+# Note: Phase 4 (Aggregation & Publishing) runs automatically within hierarchical workflow
 from src.workflows import (
     execute_hierarchical_workflow,
 )
-
-# Import Phase 4: Aggregation & Publishing components
-from src.aggregation import export_sdd, DebateOrchestrator, DebateConfig
-from src.agents import (
-    create_white_hat_agent,
-    create_black_hat_agent,
-    create_green_hat_agent,
-    create_editor_agent,
-)
-from src.templates import SDD_TEMPLATE
 
 
 def get_llm(provider):
@@ -105,75 +96,15 @@ def run_hierarchical_workflow(
     return result
 
 
-def run_phase4_aggregation(requirement: str):
-    """Run Phase 4: Aggregation & Publishing."""
-    print("\n" + "="*60)
-    print("PHASE 4: AGGREGATION & PUBLISHING")
-    print("="*60)
-
-    # Mock aggregated data - thực tế sẽ từ Phase 3
-    mock_data = {
-        "feature_name": requirement[:50],
-        "version": "1.0",
-        "date": "2026-01-22",
-        "author": "AI Assistant",
-        "business_context": f"Business requirement: {requirement}",
-        "mermaid_code": "graph TD\nA[User] --> B[System]\nB --> C[Database]",
-        "workflow_table": "| 1 | Input | User provides data | Raw data |\n| 2 | Process | System processes | Processed data |\n| 3 | Output | Return result | Final output |",
-        "data_schemas": "class UserData:\n    id: int\n    name: str",
-        "happy_path": [
-            {"action": "Input", "description": "User provides data"},
-            {"action": "Process", "description": "System processes"},
-            {"action": "Output", "description": "Return result"},
-        ],
-        "edge_cases": [
-            {"scenario": "Invalid input", "mitigation": "Validate and reject"},
-            {"scenario": "Timeout", "mitigation": "Retry logic"},
-            {"scenario": "Empty result", "mitigation": "Return default"},
-            {"scenario": "Connection fail", "mitigation": "Circuit breaker"},
-            {"scenario": "Rate limit", "mitigation": "Queue and retry"},
-        ],
-        "edge_cases_list": "| Invalid input | Validate and reject | Input validation |\n| Timeout | Retry logic | Circuit breaker |",
-        "tech_stack": "| FastAPI | Async framework |\n| PostgreSQL | Reliable storage |\n| Redis | Caching layer |",
-        "tech_stack_dict": {
-            "FastAPI": {"rationale": "Async framework"},
-            "PostgreSQL": {"rationale": "Reliable storage"},
-            "Redis": {"rationale": "Caching layer"},
-        },
-    }
-
-    # Export
-    try:
-        # Use tech_stack_dict for validation (tech_stack string is for template display)
-        export_data = {
-            **mock_data,
-            "tech_stack": mock_data["tech_stack_dict"],  # Override with dict for validation
-        }
-
-        result = export_sdd(
-            aggregated_data=export_data,
-            template=SDD_TEMPLATE,
-            output_path="./output",
-            enforce_quality_gate=False,  # Bypass cho demo
-        )
-
-        print("\n✅ Export Complete!")
-        print(f"File: {result['file_path']}")
-        print(f"Quality Gate: {'PASSED' if result['passed'] else 'FAILED'}")
-        print(f"Maturity Score: {result['quality_report'].maturity_score}/10")
-
-    except Exception as e:
-        print(f"\n❌ Export Failed: {e}")
-
-
 def main():
     """
     Main entry point with CLI argument parsing.
 
-    Supports three modes:
+    Supports two modes:
     - sequential: Original sequential workflow (backward compatible)
-    - hierarchical: New hierarchical workflow with Manager Agent
-    - phase4: Phase 4 Aggregation & Publishing workflow
+    - hierarchical: Hierarchical workflow with Manager Agent + Phase 4 auto-export
+
+    Phase 4 (Aggregation & Publishing) runs automatically after hierarchical workflow completes.
     """
     parser = argparse.ArgumentParser(
         description="Deep-Spec AI: Multi-agent technical design system"
@@ -181,9 +112,9 @@ def main():
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["sequential", "hierarchical", "phase4"],
+        choices=["sequential", "hierarchical"],
         default="hierarchical",
-        help="Workflow mode: 'sequential' (original), 'hierarchical' (Manager-coordinated), or 'phase4' (Aggregation & Publishing)",
+        help="Workflow mode: 'sequential' (original) or 'hierarchical' (Manager-coordinated with Phase 4 auto-export)",
     )
     parser.add_argument(
         "requirement",
@@ -230,11 +161,8 @@ def main():
         args.requirement = "User authentication with email and password"
 
     try:
-        if args.mode == "phase4":
-            # Run Phase 4 Aggregation & Publishing workflow
-            run_phase4_aggregation(args.requirement)
-        elif args.mode == "hierarchical":
-            # Run hierarchical workflow
+        if args.mode == "hierarchical":
+            # Run hierarchical workflow (includes Phase 4 auto-export)
             result = run_hierarchical_workflow(
                 user_requirement=args.requirement,
                 manager_llm_provider=args.manager_llm,
