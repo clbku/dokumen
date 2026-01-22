@@ -1,10 +1,16 @@
-# Checklist Sequential Design Workflow
+# Checklist Sequential Design Workflow (Legacy)
 
+> **NOTE**: This document describes the original sequential workflow approach. For the new, scalable hierarchical approach, see [HIERARCHICAL_WORKFLOW.md](./HIERARCHICAL_WORKFLOW.md).
+>
+> **Vietnamese**: Đây là tài liệu gốc cho Sequential workflow approach. Đã có **Hierarchical workflow** mới với khả năng scale tốt hơn. Xem [HIERARCHICAL_WORKFLOW.md](./HIERARCHICAL_WORKFLOW.md) cho approach mới.
+>
 > Mục tiêu: Xây dựng quy trình chạy không mồi với 3 Task chuyên biệt, context linking, và validation logic bên ngoài CrewAI.
 
 ## Tổng quan
 
 Sequential Design Workflow chia nhỏ quá trình thiết kế kỹ thuật thành 3 task chuyên biệt để tránh AI "lan man" và đảm bảo output sạch, có cấu trúc.
+
+> **Sequential vs Hierarchical**: Sequential phù hợp cho projects nhỏ (2-5 agents). Hierarchical phù hợp cho projects lớn (10+ agents) với Manager Agent điều phối.
 
 - **HappyPathTask**: Phân tích luồng chính - chỉ lấy khung xương
 - **BusinessExceptionsTask**: Phân tích ngoại lệ nghiệp vụ - tìm lỗi về "luật chơi"
